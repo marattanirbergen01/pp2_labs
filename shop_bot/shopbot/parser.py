@@ -58,9 +58,18 @@ def parse_post(text: str, default_gender: str | None = None) -> ParsedPost:
         or IMPLIED_GENDER.get(result.category or "")
         or default_gender
     )
-    result.sizes = parse_sizes(_size_text(text), result.category)
+    # В одном посте может быть несколько размеров, часть из них уже продана:
+    # «Размер: S … продано‼️ / Размер: M …». Проданные строки не учитываем.
+    chunks = _size_chunks(text)
+    available = [c for c, _ in chunks if not SOLD.search(c)]
+    sold_lines = {i for c, idx in chunks if SOLD.search(c) for i in idx}
+    if chunks:
+        result.sizes = parse_sizes("\n".join(available), result.category)
+    else:
+        result.sizes = parse_sizes(_fallback_size_text(text), result.category)
     result.price = parse_price(text)
-    result.sold = bool(SOLD.search(text))
+    rest = "\n".join(ln for i, ln in enumerate(text.splitlines()) if i not in sold_lines)
+    result.sold = bool(SOLD.search(rest)) or bool(chunks and not available)
     return result
 
 
@@ -86,24 +95,28 @@ def _find_category(text: str) -> str | None:
     return None
 
 
-def _size_text(text: str) -> str:
-    """Строки с размером плюс продолжение («по факту подойдёт на 48»)."""
+def _size_chunks(text: str) -> list[tuple[str, list[int]]]:
+    """Строки с размером плюс продолжение («по факту подойдёт на 48») и их номера строк."""
     lines = [ln.strip() for ln in text.splitlines()]
-    chunks: list[str] = []
+    chunks: list[tuple[str, list[int]]] = []
     for i, line in enumerate(lines):
-        if not SIZE_LINE.search(line):
+        match = SIZE_LINE.search(line)
+        if not match:
             continue
         # «Размер» в середине описания («подходит на любой размер») не берём.
-        before = line[: SIZE_LINE.search(line).start()]
-        if re.search(r"[а-яa-z]{3,}", before, re.I):
+        if re.search(r"[а-яa-z]{3,}", line[: match.start()], re.I):
             continue
-        chunks.append(line[SIZE_LINE.search(line).end():])
+        parts, idx = [line[match.end():]], [i]
         nxt = lines[i + 1] if i + 1 < len(lines) else ""
         if nxt and not FIELD_LINE.search(nxt) and not SIZE_LINE.search(nxt):
-            chunks.append(nxt)
-    if chunks:
-        return "\n".join(chunks)
-    # Строки «Размер» нет: ищем только явные «one size» и многобуквенные размеры.
+            parts.append(nxt)
+            idx.append(i + 1)
+        chunks.append(("\n".join(parts), idx))
+    return chunks
+
+
+def _fallback_size_text(text: str) -> str:
+    """Строки «Размер» нет: ищем только явные «one size» и многобуквенные размеры."""
     return " ".join(ONE_SIZE.findall(text) + re.findall(r"\b(?:XXS|XS|XXL|XXXL|[2-5]XL)\b", text))
 
 

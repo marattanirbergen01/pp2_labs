@@ -132,3 +132,45 @@ def test_price_variants():
 def test_no_text():
     p = parse_post("")
     assert p.category is None and not p.complete
+
+
+TWO_SIZES_ONE_SOLD = """👚 Женская кофточка Blue Motion
+
+💛 Цвет: жёлтый
+🧵 Ткань: хлопок
+📏 Размер: S — большемерит, подойдет на 44–
+46 ✅ продано‼️
+📏 Размер: M — подойдет на 46–48✅
+🇩🇪 Качество: Германия
+
+💰 Цена: 3 850 ₸
+Со скидкой -30%: 2 700 тг
+
+🚚 Доставка по всему Казахстану
+➕ Каспи Red +10%
+📲 WhatsApp: wa.me/77073017434"""
+
+SLIM_SIZE = """Женская блузка
+📏 Размер: 48 ✅
+стройный 50
+🇩🇪 Качество: Германия
+💰 Цена: 4 750 ₸
+Со скидкой -30%: 3 325 тг"""
+
+
+def test_one_size_sold_other_available():
+    p = parse_post(TWO_SIZES_ONE_SOLD)
+    assert (p.gender, p.category) == ("women", "hoodies")
+    assert p.sizes == ["46", "48"]  # S (44–46) продан, остаётся M (46–48)
+    assert not p.sold
+    assert p.price == 2700
+
+
+def test_all_sizes_sold():
+    p = parse_post(TWO_SIZES_ONE_SOLD.replace("46–48✅", "46–48 продано"))
+    assert p.sold
+
+
+def test_slim_size_on_next_line():
+    p = parse_post(SLIM_SIZE)
+    assert p.sizes == ["48", "50"] and p.price == 3325
