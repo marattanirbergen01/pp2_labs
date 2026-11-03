@@ -37,13 +37,16 @@ async def find_chat(client: TelegramClient, query: str, required: bool = True):
     if query.startswith(("@", "http", "t.me")):
         return await client.get_entity(query)
     query_lower = query.lower()
-    matches = [d.entity async for d in client.iter_dialogs() if query_lower in (d.name or "").lower()]
+    # Ищем только среди каналов и групп, чтобы не цеплять личные чаты с похожим именем.
+    dialogs = [d async for d in client.iter_dialogs()
+               if (d.is_channel or d.is_group) and query_lower in (d.name or "").lower()]
+    matches = [d.entity for d in dialogs]
     if not matches:
         if not required:
             return None
         raise SystemExit(f"Не нашёл чат, в названии которого есть «{query}»")
     if len(matches) > 1:
-        names = ", ".join(getattr(m, "title", "?") for m in matches)
+        names = ", ".join(f"«{d.name}»" for d in dialogs)
         raise SystemExit(f"Под «{query}» подходит несколько чатов: {names}. Уточните название.")
     return matches[0]
 
