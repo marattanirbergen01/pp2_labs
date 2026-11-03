@@ -1,0 +1,2 @@
+# Только для tools/forward_history.py (перенос старых постов)
+telethon>=1.36
