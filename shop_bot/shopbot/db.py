@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 
 import aiosqlite
+
+from .parser import SOLD
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS products (
@@ -54,6 +57,11 @@ CREATE TABLE IF NOT EXISTS searches (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 """
+
+
+def same_item_key(text: str) -> str:
+    """Текст поста без пометок «продано», эмодзи и пробелов — чтобы узнавать повторные публикации."""
+    return " ".join(re.sub(r"[^\w]+", " ", SOLD.sub(" ", text.lower())).split())
 
 
 @dataclass
@@ -189,11 +197,19 @@ class Database:
         return [p for p in await self.active_products() if not p.complete]
 
     async def search(self, flt: Filter) -> list[Product]:
-        """Новые сверху. Повторные публикации одного товара (тот же текст) показываем один раз."""
+        """Новые сверху.
+
+        Магазины заново выкладывают непроданные вещи с тем же текстом: показываем такую
+        вещь один раз (свежую публикацию), а если любая из копий помечена «продано» —
+        не показываем совсем.
+        """
+        rows = await (await self.conn.execute(
+            "SELECT text FROM products WHERE status = 'sold'")).fetchall()
+        sold = {same_item_key(r["text"]) for r in rows} - {""}
         result, seen = [], set()
         for p in await self.active_products():
-            key = " ".join(p.text.lower().split())
-            if key and key in seen:
+            key = same_item_key(p.text)
+            if key and (key in seen or key in sold):
                 continue
             seen.add(key)
             if p.category and flt.matches(p):

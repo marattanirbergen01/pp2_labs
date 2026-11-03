@@ -278,3 +278,12 @@ async def test_reposted_item_is_shown_once(env):
     await env.press(BUYER, Nav(step="r"))
     copies = [c.message_ids for c in env.session.sent("CopyMessages", BUYER)]
     assert copies == [[132], [131]]  # только свежая публикация
+
+
+async def test_reposted_item_sold_on_any_copy_is_hidden(env):
+    await env.post(140, CARGO)                         # 29.10
+    await env.post(141, CARGO)                         # 31.10 — повтор
+    await env.post(142, CARGO)                         # 01.11 — повтор
+    await env.post(141, "‼️продано‼️\n\n" + CARGO, edited=True)  # продали по копии от 31.10
+    await env.press(BUYER, Nav(step="r"))
+    assert env.session.sent("CopyMessages", BUYER) == []
