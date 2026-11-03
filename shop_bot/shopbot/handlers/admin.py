@@ -1,5 +1,7 @@
 """Продавец: импорт постов пересылкой, исправление разбора, «продано», статистика."""
 
+from __future__ import annotations
+
 from aiogram import F, Router
 from aiogram.filters import Command, Filter as BaseFilter
 from aiogram.fsm.context import FSMContext

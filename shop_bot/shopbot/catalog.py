@@ -1,5 +1,7 @@
 """Приём постов, разбор, рассылка подписчикам и отправка постов покупателям."""
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable

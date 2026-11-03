@@ -1,5 +1,7 @@
 """Хранилище товаров, покупателей и подписок (SQLite)."""
 
+from __future__ import annotations
+
 import json
 from dataclasses import dataclass, field
 

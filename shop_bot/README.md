@@ -27,7 +27,7 @@
 3. Узнайте свой Telegram ID: напишите [@userinfobot](https://t.me/userinfobot).
 
 ### 2. Установите и настройте
-Нужен Python 3.10+ (проверка: `python3 --version`; если старее — поставьте с [python.org](https://www.python.org/downloads/)).
+Нужен Python 3.9+ (проверка: `python3 --version`). Надёжнее поставить свежий с [python.org](https://www.python.org/downloads/).
 
 ```bash
 git clone https://github.com/marattanirbergen01/pp2_labs.git

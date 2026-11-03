@@ -1,5 +1,7 @@
 """Посты канала: бот должен быть администратором канала."""
 
+from __future__ import annotations
+
 from aiogram import Router
 from aiogram.types import Message
 

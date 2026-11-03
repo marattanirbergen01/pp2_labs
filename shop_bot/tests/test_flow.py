@@ -1,5 +1,7 @@
 """Сценарии целиком: посты канала → поиск кнопками → выдача → подписка → «продано» → импорт."""
 
+from __future__ import annotations
+
 from datetime import datetime
 
 import pytest
