@@ -73,14 +73,18 @@ async def env():
     dp["db"], dp["config"], dp["catalog"] = db, config, Catalog(bot, db, config)
     counter = iter(range(1, 10_000))
 
-    async def feed(**update):
+    async def feed(wait=True, **update):
         await dp.feed_update(bot, Update(update_id=next(counter), **update))
+        if wait:
+            await dp["catalog"].debouncer.wait()
+
+    async def wait():
         await dp["catalog"].debouncer.wait()
 
-    async def post(message_id, caption, media_group_id=None, edited=False):
+    async def post(message_id, caption, media_group_id=None, edited=False, wait=True):
         msg = Message(message_id=message_id, date=NOW, chat=Chat(id=CHANNEL, type="channel"),
                       photo=PHOTO, caption=caption, media_group_id=media_group_id)
-        await feed(**{"edited_channel_post" if edited else "channel_post": msg})
+        await feed(wait=wait, **{"edited_channel_post" if edited else "channel_post": msg})
 
     async def private(user_id, text=None, **extra):
         msg = Message(message_id=next(counter), date=NOW, chat=Chat(id=user_id, type="private"),
@@ -98,7 +102,7 @@ async def env():
         pass
 
     e = Env()
-    e.session, e.db, e.post, e.private, e.press, e.feed = session, db, post, private, press, feed
+    e.session, e.db, e.post, e.private, e.press, e.feed, e.wait = session, db, post, private, press, feed, wait
     yield e
     await db.close()
 
@@ -187,7 +191,7 @@ async def test_admin_import_by_forwarding(env):
 
 
 async def test_unrecognized_post_goes_to_admin_and_can_be_fixed(env):
-    await env.post(60, "Новинка 🔥 размер 46")
+    await env.post(60, "Новинка 🔥\nЦена: 5 000 тг")
     assert "не всё удалось распознать" in env.session.texts(ADMIN)[-1]
 
     await env.press(ADMIN, Adm(act="setc", id=1, v="dresses"))
@@ -199,7 +203,7 @@ async def test_unrecognized_post_goes_to_admin_and_can_be_fixed(env):
 
 
 async def test_buyer_cannot_use_admin_buttons(env):
-    await env.post(60, "Новинка 🔥")
+    await env.post(60, "Новинка 🔥\nЦена: 5 000 тг")
     await env.press(BUYER, Adm(act="status", id=1, v="deleted"))
     assert (await env.db.get_product(1)).status == "active"
 
@@ -207,7 +211,7 @@ async def test_buyer_cannot_use_admin_buttons(env):
 async def test_history_forwarded_into_channel_is_import(env):
     origin = MessageOriginChannel(type="channel", date=NOW, chat=Chat(id=-100777, type="channel"), message_id=5)
     msg = Message(message_id=70, date=NOW, chat=Chat(id=CHANNEL, type="channel"), photo=PHOTO,
-                  caption="Новинка 🔥", forward_origin=origin)
+                  caption="Новинка 🔥\nЦена: 5 000 тг", forward_origin=origin)
     await env.press(BUYER, Nav(step="sub"))  # подписан на всё
     await env.feed(channel_post=msg)
     assert env.session.sent("CopyMessages", BUYER) == []  # старые посты не рассылаются
@@ -220,3 +224,23 @@ async def test_admin_edits_sizes_by_text(env):
     await env.press(ADMIN, Adm(act="s", id=1))
     await env.private(ADMIN, "S-M")
     assert (await env.db.get_product(1)).sizes == ["44", "46"]
+
+
+async def test_album_parts_arriving_concurrently_make_one_product(env):
+    """Telegram присылает части альбома почти одновременно, бот обрабатывает их параллельно."""
+    import asyncio
+    await asyncio.gather(
+        env.post(90, None, media_group_id="g9", wait=False),
+        env.post(91, TSHIRT, media_group_id="g9", wait=False),
+        env.post(92, None, media_group_id="g9", wait=False),
+    )
+    await env.wait()
+    [product] = await env.db.active_products()
+    assert product.message_ids == [90, 91, 92]
+    assert product.category == "tshirts"
+
+
+async def test_greeting_post_is_not_a_product(env):
+    await env.post(95, "🌸 Девочки, всем доброе утро! ☀️\n\nЖелаем вам прекрасного дня и удачных покупок!")
+    assert await env.db.active_products() == []
+    assert env.session.texts(ADMIN) == []  # продавца не дёргаем

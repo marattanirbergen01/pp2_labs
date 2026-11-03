@@ -7,7 +7,7 @@ from .categories import CATEGORY_LABELS, GENDERS
 from .db import Filter, Product
 
 GENDER_CODES = {"w": "women", "m": "men", "k": "kids"}
-STATUS_LABELS = {"active": "✅ в продаже", "sold": "❌ продано", "deleted": "🗑 убран"}
+STATUS_LABELS = {"active": "✅ в продаже", "sold": "❌ продано", "deleted": "🗑 убран", "hidden": "💬 не товар"}
 
 
 class Nav(CallbackData, prefix="n"):

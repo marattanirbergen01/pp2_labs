@@ -174,3 +174,76 @@ def test_all_sizes_sold():
 def test_slim_size_on_next_line():
     p = parse_post(SLIM_SIZE)
     assert p.sizes == ["48", "50"] and p.price == 3325
+
+
+# Названия реальных постов, которые раньше не распознавались.
+REAL_TITLES = {
+    "🩵 Женские капри": ("pants", "women"),
+    "🤍 Женские кюлоты": ("pants", "women"),
+    "💗 Женская маечка": ("tshirts", "women"),
+    "👒 Женская шляпа": ("accessories", "women"),
+    "🩵 Велосипедки на девочку 🩵": ("shorts", "kids"),
+    "🩳 Мужские шорты-бриджи": ("shorts", "men"),
+    "🏃‍♀️ Женские термолосины": ("pants", "women"),
+    "👗 Женское платье-рубашка": ("dresses", "women"),
+    "👚 Комплект из 2 женских лонгсливов Blue Motion 🇩🇪": ("hoodies", "women"),
+    "🩳 Комплект женских шорт Blue Motion 🇩🇪": ("shorts", "women"),
+    "🏃‍♀️ Женская спортивная мастерка Crane 🇩🇪": ("hoodies", "women"),
+    "🖤 Женский брючный комбинезон Esmara": ("suits", "women"),
+    "🧦 Тёплые детские колготки Lily & Dan 🇩🇪": ("hosiery", "kids"),
+    "🧦🎀 Термогольфы на девочку Lily & Dan": ("hosiery", "kids"),
+    "🧦🐻 Тёплые термоноски": ("hosiery", None),
+    "🖤 Женское корректирующее бельё": ("underwear", "women"),
+    "🖤 Мужские кальсоны Livergy": ("underwear", "men"),
+    "🐆 Яркое боди в дерзком стиле 🐆": ("underwear", None),
+    "🩵 Женский палантин PIECES": ("accessories", "women"),
+    "💙 Женская джинсовая куртка ONLY": ("outerwear", "women"),
+    "🖤 Дублёнка ADPT": ("outerwear", None),
+    "♥️ Женская кофта-туника": ("hoodies", "women"),
+    "🌿 ЖЕНСКАЯ ТУНИКА Sheego Ladies 🇩🇪": ("shirts", "women"),
+    "🩶 Женская безрукавка": ("tshirts", "women"),
+    "💚💖 Мужская спортивная олимпийка": ("hoodies", "men"),
+    "🌿 Мужские слаксы Jack & Jones": ("pants", "men"),
+    "🧡 Кофта-пончо от Sheego — Германия 🇩🇪": ("hoodies", None),
+    "Потрясающий стильный жакет-накидка 🖤✨": ("outerwear", None),
+    "🖤✨ Юбка-шорты для девочки": ("skirts", "kids"),
+    "👕🤎 Поло на мальчика": ("tshirts", "kids"),
+}
+
+
+def test_real_titles():
+    wrong = {}
+    for title, expected in REAL_TITLES.items():
+        p = parse_post(title)
+        if (p.category, p.gender) != expected:
+            wrong[title] = (p.category, p.gender)
+    assert wrong == {}
+
+
+def test_kids_sizes_are_height_ranges():
+    p = parse_post("🧦 Детские колготки Lily & Dan\n📏 Размер: 122–128, 6–8 лет\n💰 Цена: 2 500 тг")
+    assert (p.category, p.gender, p.sizes) == ("hosiery", "kids", ["122-128"])
+    p = parse_post("Кофточка на девочку в ярко-розовом цвете 💖\n\nРазмер 122–128 — на 7–8 лет")
+    assert (p.gender, p.sizes) == ("kids", ["122-128"])
+    # Рост без пометки «детское» тоже значит детское.
+    p = parse_post("🌸 Кофта\n📏 Размер: 146–152 ✅", default_gender="women")
+    assert (p.gender, p.sizes) == ("kids", ["146-152"])
+
+
+def test_fit_line_without_size_word():
+    p = parse_post("🖤 Женский брючный комбинезон Esmara\n✨ Цвет: чёрный\n📏 Подойдет на 48–50 ✅")
+    assert p.sizes == ["48", "50"]
+    p = parse_post("Мужской тёплый термо-лонгслив\nТермолонгслив в размере M, отлично подойдёт на 48 размер.")
+    assert p.sizes == ["48"]
+
+
+def test_sold_marker_line_is_not_title():
+    p = parse_post("‼️продано‼️\n\n🖤 Женские лосины Blue Motion\n📏 Размер: XL, 50–52 ✅")
+    assert p.title == "Женские лосины Blue Motion"
+    assert (p.category, p.sold) == ("pants", True)
+
+
+def test_greeting_is_not_a_product():
+    p = parse_post("🌸 Девочки, всем доброе утро! ☀️\n\nЖелаем вам прекрасного дня и удачных покупок!")
+    assert not p.looks_like_product
+    assert not parse_post("Елена, благодарю 🫶🫂").looks_like_product

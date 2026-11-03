@@ -74,6 +74,9 @@ class Catalog:
         self.db = db
         self.config = config
         self.debouncer = Debouncer(config.album_delay)
+        # Части альбома приходят почти одновременно и обрабатываются параллельно:
+        # без блокировки каждая создала бы свой товар.
+        self._ingest_lock = asyncio.Lock()
         self._imported: dict[int, list[int]] = {}
 
     # --- приём постов ---
@@ -83,6 +86,10 @@ class Catalog:
 
         Возвращает уже существующий товар, если этот пост был добавлен раньше.
         """
+        async with self._ingest_lock:
+            return await self._ingest(message, source)
+
+    async def _ingest(self, message: Message, source: str) -> Product | None:
         origin = origin_key(message)
         if origin and (existing := await self.db.product_by_key(origin)):
             return existing
@@ -127,6 +134,9 @@ class Catalog:
             fields.update(gender=parsed.gender, category=parsed.category, sizes=parsed.sizes)
         if parsed.sold and product.status == "active":
             fields["status"] = "sold"
+        elif not product.manual and product.status in ("active", "hidden"):
+            # Приветствия, отзывы, объявления: ни категории, ни цены, ни размера — не товар.
+            fields["status"] = "active" if parsed.looks_like_product else "hidden"
         await self.db.update_product(product_id, **fields)
         return await self.db.get_product(product_id)
 
@@ -146,8 +156,11 @@ class Catalog:
         products = [p for p in [await self.db.get_product(i) for i in ids] if p]
         incomplete = [p for p in products if p.status == "active" and not p.complete]
         sold = [p for p in products if p.status == "sold"]
-        text = f"📥 Добавлено товаров: <b>{len(products)}</b>\n"
-        text += f"✅ Распознано полностью: {len(products) - len(incomplete) - len(sold)}\n"
+        hidden = [p for p in products if p.status == "hidden"]
+        text = f"📥 Добавлено товаров: <b>{len(products) - len(hidden)}</b>\n"
+        text += f"✅ Распознано полностью: {len(products) - len(incomplete) - len(sold) - len(hidden)}\n"
+        if hidden:
+            text += f"💬 Пропущено постов без товара (приветствия, отзывы): {len(hidden)}\n"
         if sold:
             text += f"❌ Помечены как проданные: {len(sold)}\n"
         if incomplete:
