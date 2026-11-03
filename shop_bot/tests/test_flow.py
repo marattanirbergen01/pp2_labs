@@ -150,7 +150,7 @@ async def test_buyer_search_flow(env):
 async def test_more_button_pages(env):
     env_config_page = 5
     for i in range(7):
-        await env.post(100 + i, TSHIRT)
+        await env.post(100 + i, f"{TSHIRT}\nАртикул {i}")
     await env.press(BUYER, Nav(step="r"))
     assert len(env.session.sent("CopyMessages", BUYER)) == env_config_page
     footer = env.session.sent("SendMessage", BUYER)[-1]
@@ -264,8 +264,17 @@ async def test_posts_are_sent_one_per_delay(env, monkeypatch):
         pauses.append(seconds)
 
     for i in range(3):
-        await env.post(120 + i, TSHIRT)
+        await env.post(120 + i, f"{TSHIRT}\nАртикул {i}")
     env.config.send_delay = 1.0
     monkeypatch.setattr(catalog_module.asyncio, "sleep", fake_sleep)
     await env.catalog.send_products(BUYER, await env.db.search(Nav(step="r").flt))
     assert pauses == [1.0, 1.0]  # между тремя постами — две паузы по секунде
+
+
+async def test_reposted_item_is_shown_once(env):
+    await env.post(130, CARGO)
+    await env.post(131, TSHIRT)
+    await env.post(132, CARGO + "\n")  # продавец выложил ту же вещь ещё раз
+    await env.press(BUYER, Nav(step="r"))
+    copies = [c.message_ids for c in env.session.sent("CopyMessages", BUYER)]
+    assert copies == [[132], [131]]  # только свежая публикация

@@ -189,8 +189,16 @@ class Database:
         return [p for p in await self.active_products() if not p.complete]
 
     async def search(self, flt: Filter) -> list[Product]:
-        """Новые сверху."""
-        return [p for p in await self.active_products() if p.category and flt.matches(p)]
+        """Новые сверху. Повторные публикации одного товара (тот же текст) показываем один раз."""
+        result, seen = [], set()
+        for p in await self.active_products():
+            key = " ".join(p.text.lower().split())
+            if key and key in seen:
+                continue
+            seen.add(key)
+            if p.category and flt.matches(p):
+                result.append(p)
+        return result
 
     # --- покупатели и подписки ---
 
