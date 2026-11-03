@@ -61,7 +61,7 @@ class FakeSession(BaseSession):
 
 @pytest.fixture
 async def env():
-    config = Config(bot_token="123:TEST", admin_ids={ADMIN}, default_gender="women", album_delay=0)
+    config = Config(bot_token="123:TEST", admin_ids={ADMIN}, default_gender="women", album_delay=0, send_delay=0)
     session = FakeSession()
     bot = create_bot(config, session=session)
     db = Database(":memory:")
@@ -103,6 +103,7 @@ async def env():
 
     e = Env()
     e.session, e.db, e.post, e.private, e.press, e.feed, e.wait = session, db, post, private, press, feed, wait
+    e.config, e.catalog = config, dp["catalog"]
     yield e
     await db.close()
 
@@ -244,3 +245,27 @@ async def test_greeting_post_is_not_a_product(env):
     await env.post(95, "🌸 Девочки, всем доброе утро! ☀️\n\nЖелаем вам прекрасного дня и удачных покупок!")
     assert await env.db.active_products() == []
     assert env.session.texts(ADMIN) == []  # продавца не дёргаем
+
+
+async def test_size_buttons_go_straight_to_results(env):
+    await env.post(110, TSHIRT)
+    await env.press(BUYER, Nav(step="s", g="w"))
+    sizes = env.session.sent("EditMessageText", BUYER)[-1]
+    steps = {Nav.unpack(b.callback_data).step for row in sizes.reply_markup.inline_keyboard for b in row
+             if not b.text.startswith("⬅️")}
+    assert steps == {"r"}  # шага «Цена» больше нет
+
+
+async def test_posts_are_sent_one_per_delay(env, monkeypatch):
+    import shopbot.catalog as catalog_module
+    pauses = []
+
+    async def fake_sleep(seconds):
+        pauses.append(seconds)
+
+    for i in range(3):
+        await env.post(120 + i, TSHIRT)
+    env.config.send_delay = 1.0
+    monkeypatch.setattr(catalog_module.asyncio, "sleep", fake_sleep)
+    await env.catalog.send_products(BUYER, await env.db.search(Nav(step="r").flt))
+    assert pauses == [1.0, 1.0]  # между тремя постами — две паузы по секунде

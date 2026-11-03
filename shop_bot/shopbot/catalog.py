@@ -178,7 +178,9 @@ class Catalog:
     async def send_products(self, chat_id: int, products: list[Product]) -> int:
         """Копирует посты покупателю. Удалённые из канала посты помечает и пропускает."""
         sent = 0
-        for product in products:
+        for i, product in enumerate(products):
+            if i:
+                await asyncio.sleep(self.config.send_delay)  # посты приходят по одному, а не пачкой
             try:
                 await self.bot.copy_messages(chat_id, product.chat_id, product.message_ids)
                 sent += 1

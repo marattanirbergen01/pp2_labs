@@ -14,6 +14,7 @@ class Config:
     default_gender: str | None = None                   # women / men, если в посте не указан пол
     page_size: int = 5
     album_delay: float = 1.5                            # сек ожидания остальных фото альбома
+    send_delay: float = 1.0                             # сек между постами в выдаче
     shop_name: str = "Магазин"
 
 
@@ -45,5 +46,6 @@ def load_config() -> Config:
         db_path=os.environ.get("DB_PATH", "shop.db"),
         default_gender=os.environ.get("DEFAULT_GENDER") or None,
         page_size=int(os.environ.get("PAGE_SIZE", "5")),
+        send_delay=float(os.environ.get("SEND_DELAY", "1")),
         shop_name=os.environ.get("SHOP_NAME", "Магазин"),
     )

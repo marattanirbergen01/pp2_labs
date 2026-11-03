@@ -7,11 +7,11 @@ from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 
 from ..catalog import Catalog
-from ..categories import CATEGORY_LABELS, CATEGORY_ORDER, GENDERS, PRICE_STEPS
+from ..categories import CATEGORY_LABELS, CATEGORY_ORDER, GENDERS
 from ..config import Config
 from ..db import Database, Filter
 from ..keyboards import (
-    GENDER_CODES, Nav, Unsub, button, describe, markup, money, new_search_button, rows, size_label,
+    GENDER_CODES, Nav, Unsub, button, describe, markup, new_search_button, rows, size_label,
 )
 from ..parser import sort_sizes
 
@@ -49,12 +49,7 @@ async def render(db: Database, nav: Nav) -> tuple[str, InlineKeyboardMarkup] | N
     if nav.step == "c":
         return await _category_step(db, flt, back=len(await gender_options(db, flt)) > 1)
     if nav.step == "s":
-        result = await _size_step(db, flt)
-        if result:
-            return result
-        nav = Nav.of("p", flt)
-    if nav.step == "p":
-        return await _price_step(db, nav.flt)
+        return await _size_step(db, flt)
     return None
 
 
@@ -81,30 +76,10 @@ async def _size_step(db: Database, flt: Filter):
     if not counts:
         return None
     base = Filter(g=flt.g, c=flt.c)
-    buttons = [button(f"{size_label(s)} ({counts[s]})", Nav.of("p", Filter(flt.g, flt.c, s))) for s in sort_sizes(counts)]
-    buttons.append(button("Любой размер", Nav.of("p", base)))
+    buttons = [button(f"{size_label(s)} ({counts[s]})", Nav.of("r", Filter(flt.g, flt.c, s))) for s in sort_sizes(counts)]
+    buttons.append(button(f"Любой размер ({len(products)})", Nav.of("r", base)))
     return (f"{describe(base)}\nКакой размер?",
             markup(*rows(buttons, 4), [button("⬅️ Назад", Nav.of("c", Filter(g=flt.g)))]))
-
-
-async def _price_step(db: Database, flt: Filter):
-    products = await db.search(Filter(flt.g, flt.c, flt.s))
-    prices = [p.price for p in products if p.price]
-    steps = [(t, sum(1 for x in prices if x <= t)) for t in PRICE_STEPS]
-    steps = [(t, n) for t, n in steps if 0 < n < len(products)]
-    # убираем пороги, которые не меняют выдачу
-    useful, last = [], -1
-    for t, n in steps:
-        if n != last:
-            useful.append((t, n))
-            last = n
-    if not useful:
-        return None
-    base = Filter(flt.g, flt.c, flt.s)
-    buttons = [button(f"до {money(t)} ({n})", Nav.of("r", Filter(flt.g, flt.c, flt.s, t))) for t, n in useful[:6]]
-    buttons.append(button(f"Любая ({len(products)})", Nav.of("r", base)))
-    back = Nav.of("s", Filter(flt.g, flt.c))
-    return f"{describe(base)}\nЦена?", markup(*rows(buttons, 2), [button("⬅️ Назад", back)])
 
 
 async def show_results(chat_id: int, user_id: int, flt: Filter, offset: int,
