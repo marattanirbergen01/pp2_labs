@@ -105,7 +105,7 @@ def test_blouse():
 def test_cargo_waist_size_ignores_measurements():
     p = parse_post(CARGO, default_gender="women")
     assert (p.gender, p.category) == ("men", "pants")
-    assert p.sizes == ["W32"]
+    assert p.sizes == ["48"]  # W32 -> русский 48
     assert p.price == 11600
 
 
@@ -247,3 +247,11 @@ def test_greeting_is_not_a_product():
     p = parse_post("🌸 Девочки, всем доброе утро! ☀️\n\nЖелаем вам прекрасного дня и удачных покупок!")
     assert not p.looks_like_product
     assert not parse_post("Елена, благодарю 🫶🫂").looks_like_product
+
+
+def test_waist_sizes_become_russian():
+    assert parse_sizes("W28", "jeans") == ["44"]
+    assert parse_sizes("W30 L32", "jeans") == ["46"]  # L32 — длина, не размер
+    assert parse_sizes("29", "pants") == ["44", "46"]  # нечётный — оба соседних
+    assert parse_sizes("28-30", "jeans") == ["44", "46"]
+    assert parse_sizes("48", "jeans") == ["48"]  # русский размер не трогаем

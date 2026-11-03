@@ -148,9 +148,11 @@ def _fallback_size_text(text: str) -> str:
 
 
 def parse_sizes(text: str, category: str | None = None, kids: bool = False) -> list[str]:
-    """Размеры: российские для одежды, «W32» для брюк, «38» для обуви, «ONE»,
+    """Размеры: российские для одежды (W32 у брюк тоже переводится в русский — 48), «38» для обуви, «ONE»,
     диапазоны «122-128» для детей (рост) и колготок/носков."""
     text = text.translate(CYR_TO_LAT)
+    if re.search(r"\bW\s?\d{2}\b", text):
+        text = re.sub(r"\bL\s?\d{2}\b", " ", text)  # «W30 L32»: L — длина штанин, не размер
     sizes: set[str] = set()
     as_ranges = kids or category in RANGE_LABEL_CATEGORIES
 
@@ -212,7 +214,9 @@ def _add_number(sizes: set[str], value: float, category: str | None) -> None:
         if 16 <= value <= 48:
             sizes.add(label)
     elif category in WAIST_CATEGORIES and 23 <= value <= 36:
-        sizes.add(f"W{label}")
+        # Американский размер по талии (W) -> русский: W28 = 44, W30 = 46, W32 = 48.
+        ru = int(value) + 16
+        sizes.update({str(ru)} if ru % 2 == 0 else {str(ru - 1), str(ru + 1)})
     elif 38 <= value <= 74 and value == int(value):
         sizes.add(label)
 

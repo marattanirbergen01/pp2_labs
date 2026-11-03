@@ -126,7 +126,7 @@ async def ask_sizes(call: CallbackQuery, callback_data: Adm, state: FSMContext) 
     await state.set_state(EditSizes.waiting)
     await state.update_data(product_id=callback_data.id)
     await call.message.answer(f"Напишите размеры товара #{callback_data.id}, например: <code>46 48</code>, "
-                              "<code>S-L</code>, <code>W32</code> или <code>one size</code>")
+                              "<code>S-L</code>, <code>32</code> (для брюк — это W32, станет 48) или <code>one size</code>")
 
 
 @router.callback_query(Adm.filter(F.act.in_({"setg", "setc"})))
